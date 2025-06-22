@@ -13,10 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CHANGELOG.md following Keep a Changelog format
 - TODO.md with structured task management system
 - CLAUDE.md with project context and development guidelines
+- GitHub repository links to installation instructions
 
 ### Changed
 - Project documentation language standardized to English
 - Improved code organization and structure documentation
+- Installation instructions now include git clone as recommended method with wget as alternative
 
 ## [1.0.0] - 2025-06-19
 

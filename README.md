@@ -56,9 +56,18 @@ source ~/whisper-env/bin/activate
 pip install -U openai-whisper
 ```
 
-### Step 4: Download the Script
+### Step 4: Get the Script
+
+**Option A: Clone the Repository (Recommended)**
 ```bash
-wget enter_your_github_raw_url_here/transcribe_openai_whisper.sh
+git clone https://github.com/PeerHoffmann/transcribe_openai_whisper.git
+cd transcribe_openai_whisper
+chmod +x transcribe_openai_whisper.sh
+```
+
+**Option B: Download Script Only**
+```bash
+wget https://raw.githubusercontent.com/PeerHoffmann/transcribe_openai_whisper/master/transcribe_openai_whisper.sh
 chmod +x transcribe_openai_whisper.sh
 ```
 
