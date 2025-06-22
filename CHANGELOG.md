@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2025-06-22
+
+### Added
+- Interactive update prompts - script now stops and asks user to continue or update when newer version available
+- User choice options: continue (c), update (u), or quit (q)
+- Clear update instructions for both git cloned and direct download installations
+
+### Fixed
+- Fixed bash syntax error in conditional whisper command structure
+- Improved error handling for timeout vs non-timeout command execution
+
 ## [1.1.1] - 2025-06-22
 
 ### Fixed

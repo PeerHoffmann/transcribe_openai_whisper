@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenAI Whisper Transcription Script
-# Version: 1.1.1
+# Version: 1.1.2
 # Author: Peer Hoffmann
 # Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
@@ -52,13 +52,48 @@ check_for_updates() {
         
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
-        CURRENT_VERSION="1.1.1"
+        CURRENT_VERSION="1.1.2"
         
         if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
-            echo "🆕 Update available: $CURRENT_VERSION → $LATEST_VERSION"
-            echo "📥 To update: git pull origin master (if cloned) or download from:"
-            echo "   https://github.com/PeerHoffmann/transcribe_openai_whisper/releases/latest"
             echo ""
+            echo "🆕 UPDATE AVAILABLE!"
+            echo "   Current version: $CURRENT_VERSION"
+            echo "   Latest version:  $LATEST_VERSION"
+            echo ""
+            echo "📥 Update options:"
+            echo "   1. git pull origin master (if cloned)"
+            echo "   2. Download from: https://github.com/PeerHoffmann/transcribe_openai_whisper/releases/latest"
+            echo ""
+            
+            while true; do
+                read -p "❓ Do you want to continue with current version or update first? [c/u/q]: " choice
+                case $choice in
+                    [Cc]* ) 
+                        echo "✅ Continuing with current version..."
+                        echo ""
+                        break
+                        ;;
+                    [Uu]* ) 
+                        echo "🔄 Please update manually and restart the script."
+                        echo ""
+                        echo "If you cloned the repository:"
+                        echo "   git pull origin master"
+                        echo ""
+                        echo "If you downloaded the script only:"
+                        echo "   wget https://raw.githubusercontent.com/PeerHoffmann/transcribe_openai_whisper/master/transcribe_openai_whisper.sh -O transcribe_openai_whisper.sh"
+                        echo "   chmod +x transcribe_openai_whisper.sh"
+                        echo ""
+                        exit 0
+                        ;;
+                    [Qq]* ) 
+                        echo "👋 Exiting..."
+                        exit 0
+                        ;;
+                    * ) 
+                        echo "Please answer 'c' (continue), 'u' (update), or 'q' (quit)."
+                        ;;
+                esac
+            done
         fi
     fi
 }
@@ -130,7 +165,7 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         
         # Whisper with extended parameters for better music/speech separation
         if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
-            if timeout "$TIMEOUT_SECONDS" whisper "$audio" \
+            timeout "$TIMEOUT_SECONDS" whisper "$audio" \
                 --model "$WHISPER_MODEL" \
                 --output_dir "$OUTPUT_DIR" \
                 --output_format txt \
@@ -139,9 +174,9 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
                 --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
                 --logprob_threshold "$LOGPROB_THRESHOLD" \
                 --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
-                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1; then
+                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1
         else
-            if whisper "$audio" \
+            whisper "$audio" \
                 --model "$WHISPER_MODEL" \
                 --output_dir "$OUTPUT_DIR" \
                 --output_format txt \
@@ -150,8 +185,10 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
                 --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
                 --logprob_threshold "$LOGPROB_THRESHOLD" \
                 --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
-                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1; then
+                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1
         fi
+        
+        if [[ $? -eq 0 ]]; then
             
             # Check if transcript was created
             transcript_file="$OUTPUT_DIR/$base_name.txt"
