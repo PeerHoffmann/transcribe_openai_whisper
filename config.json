@@ -1,0 +1,16 @@
+{
+  "audio_dir": "enter_your_audio_directory_here",
+  "output_dir": "enter_your_output_directory_here",
+  "whisper_model": "large",
+  "brand_prompt": "In this recording, the following brand names are mentioned: your_brand_1, your_brand_2",
+  "check_for_updates": true,
+  "advanced_settings": {
+    "no_speech_threshold": 0.6,
+    "logprob_threshold": -1.0,
+    "compression_ratio_threshold": 2.4,
+    "condition_on_previous_text": true,
+    "timeout_seconds": 600,
+    "enable_timeout": true,
+    "verbose": true
+  }
+}

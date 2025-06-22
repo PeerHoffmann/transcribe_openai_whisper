@@ -1,124 +1,198 @@
 #!/bin/bash
 
-# === EINSTELLUNGEN - HIER ANPASSEN ===
-AUDIO_DIR="/mnt/c/Users/peerh/Downloads"
-OUTPUT_DIR="/mnt/c/Users/peerh/Transcripts"
+# OpenAI Whisper Transcription Script
+# Version: 1.1.0
+# Author: Peer Hoffmann
+# Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
-# Markennamen für bessere Erkennung
-BRAND_PROMPT="In dieser Aufnahme werden folgende Markennamen erwähnt: jonastone, stonenaturelle"
+# === CONFIGURATION LOADING ===
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/config.json"
 
-# === AB HIER NICHTS ÄNDERN ===
-# Log-Datei erstellen
+# Check if config file exists
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "❌ Error: Configuration file 'config.json' not found!"
+    echo "Please copy config.json.example to config.json and adjust your settings."
+    exit 1
+fi
+
+# Check if jq is available for JSON parsing
+if ! command -v jq &> /dev/null; then
+    echo "❌ Error: 'jq' is required for configuration parsing but not installed."
+    echo "Please install jq: sudo apt install jq (Ubuntu/Debian) or brew install jq (macOS)"
+    exit 1
+fi
+
+# Load configuration from JSON
+AUDIO_DIR=$(jq -r '.audio_dir' "$CONFIG_FILE")
+OUTPUT_DIR=$(jq -r '.output_dir' "$CONFIG_FILE")
+WHISPER_MODEL=$(jq -r '.whisper_model' "$CONFIG_FILE")
+BRAND_PROMPT=$(jq -r '.brand_prompt' "$CONFIG_FILE")
+CHECK_FOR_UPDATES=$(jq -r '.check_for_updates' "$CONFIG_FILE")
+
+# Load advanced settings
+NO_SPEECH_THRESHOLD=$(jq -r '.advanced_settings.no_speech_threshold' "$CONFIG_FILE")
+LOGPROB_THRESHOLD=$(jq -r '.advanced_settings.logprob_threshold' "$CONFIG_FILE")
+COMPRESSION_RATIO_THRESHOLD=$(jq -r '.advanced_settings.compression_ratio_threshold' "$CONFIG_FILE")
+CONDITION_ON_PREVIOUS_TEXT=$(jq -r '.advanced_settings.condition_on_previous_text' "$CONFIG_FILE")
+TIMEOUT_SECONDS=$(jq -r '.advanced_settings.timeout_seconds' "$CONFIG_FILE")
+ENABLE_TIMEOUT=$(jq -r '.advanced_settings.enable_timeout' "$CONFIG_FILE")
+VERBOSE=$(jq -r '.advanced_settings.verbose' "$CONFIG_FILE")
+
+# Validate required configuration
+if [[ "$AUDIO_DIR" == "enter_your_audio_directory_here" ]] || [[ "$OUTPUT_DIR" == "enter_your_output_directory_here" ]]; then
+    echo "❌ Error: Please configure your audio_dir and output_dir in config.json"
+    exit 1
+fi
+
+# === UPDATE CHECKING ===
+check_for_updates() {
+    if [[ "$CHECK_FOR_UPDATES" == "true" ]]; then
+        echo "🔍 Checking for updates..."
+        
+        # Get latest release from GitHub API
+        LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
+        CURRENT_VERSION="1.1.0"
+        
+        if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
+            echo "🆕 Update available: $CURRENT_VERSION → $LATEST_VERSION"
+            echo "📥 To update: git pull origin master (if cloned) or download from:"
+            echo "   https://github.com/PeerHoffmann/transcribe_openai_whisper/releases/latest"
+            echo ""
+        fi
+    fi
+}
+
+# === DO NOT CHANGE ANYTHING BELOW THIS LINE ===
+# Set up timeout command based on configuration
+if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
+    TIMEOUT_CMD="timeout $TIMEOUT_SECONDS"
+else
+    TIMEOUT_CMD=""
+fi
+
+# Create log file
 LOG_FILE="$OUTPUT_DIR/transcription_log.txt"
 SUMMARY_FILE="$OUTPUT_DIR/transcription_summary.txt"
 
-echo "🎵 Whisper Audio Transcription gestartet"
-echo "Audio-Dateien von: $AUDIO_DIR"
-echo "Ausgabe nach: $OUTPUT_DIR"
-echo "⚙️  Optimiert für Videos mit Musikintros"
-echo "Log-Datei: $LOG_FILE"
+# Check for updates
+check_for_updates
+
+echo "🎵 Whisper Audio Transcription started"
+echo "Audio files from: $AUDIO_DIR"
+echo "Output to: $OUTPUT_DIR"
+echo "⚙️  Optimized for videos with music intros"
+echo "🤖 Model: $WHISPER_MODEL"
+echo "⏱️  Timeout: $([ "$ENABLE_TIMEOUT" == "true" ] && echo "${TIMEOUT_SECONDS}s" || echo "disabled")"
+echo "Log file: $LOG_FILE"
 echo "=================================="
 
-# Ordner erstellen
+# Create directories
 mkdir -p "$OUTPUT_DIR"
 
-# Log-Datei initialisieren
+# Initialize log file
 cat > "$LOG_FILE" << EOF
 WHISPER TRANSCRIPTION LOG
 ========================
 Start: $(date)
-Audio-Verzeichnis: $AUDIO_DIR
-Ausgabe-Verzeichnis: $OUTPUT_DIR
-Markennamen: jonastone, stonenaturelle
-Optimiert für: Videos mit Musikintros
+Audio directory: $AUDIO_DIR
+Output directory: $OUTPUT_DIR
+Brand names: jonastone, stonenaturelle
+Optimized for: Videos with music intros
 
 EOF
 
-# Whisper aktivieren
+# Activate Whisper environment
 source ~/whisper-env/bin/activate
 
-# Zähler für Statistiken
+# Counters for statistics
 total_audios=$(ls "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov} 2>/dev/null | wc -l)
 current=0
 success_count=0
 low_word_count=0
 error_count=0
 
-echo "📊 Gefundene Audio/Video-Dateien: $total_audios"
+echo "📊 Found Audio/Video files: $total_audios"
 echo ""
 
-# Arrays für Statistiken
+# Arrays for statistics
 declare -a low_word_files
 declare -a error_files
 declare -a good_files
 
-# Alle Audio/Video-Dateien verarbeiten
+# Process all audio/video files
 for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
     if [[ -f "$audio" ]]; then
         current=$((current + 1))
         filename=$(basename "$audio")
         base_name=$(basename "$audio" | cut -d. -f1)
         
-        echo "🎵 [$current/$total_audios] Verarbeite: $filename"
+        echo "🎵 [$current/$total_audios] Processing: $filename"
         echo "[$current/$total_audios] START: $filename" >> "$LOG_FILE"
         
         start_time=$(date)
-        echo "⏳ Verarbeitung läuft (kann bei langen Musikintros dauern)..."
+        echo "⏳ Processing running (may take time with long music intros)..."
         
-        # Whisper mit erweiterten Parametern für bessere Musik/Sprache-Trennung
-        if timeout 600 whisper "$audio" \
-            --model large \
+        # Whisper with extended parameters for better music/speech separation
+        if $TIMEOUT_CMD whisper "$audio" \
+            --model "$WHISPER_MODEL" \
             --output_dir "$OUTPUT_DIR" \
             --output_format txt \
             --initial_prompt "$BRAND_PROMPT" \
-            --condition_on_previous_text True \
-            --no_speech_threshold 0.6 \
-            --logprob_threshold -1.0 \
-            --compression_ratio_threshold 2.4 \
-            --verbose True >> "$LOG_FILE" 2>&1; then
+            --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
+            --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
+            --logprob_threshold "$LOGPROB_THRESHOLD" \
+            --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
+            --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1; then
             
-            # Prüfen ob Transkript erstellt wurde
+            # Check if transcript was created
             transcript_file="$OUTPUT_DIR/$base_name.txt"
             if [[ -f "$transcript_file" ]]; then
-                # Wörter und Zeichen zählen
+                # Count words and characters
                 word_count=$(wc -w < "$transcript_file" 2>/dev/null || echo "0")
                 char_count=$(wc -c < "$transcript_file" 2>/dev/null || echo "0")
                 end_time=$(date)
                 
-                # Transkript-Inhalt analysieren
+                # Analyze transcript content
                 content=$(cat "$transcript_file" 2>/dev/null)
                 
-                # Bessere Bewertung für Musikintros
+                # Better evaluation for music intros
                 if [[ $word_count -lt 3 ]] || [[ $char_count -lt 10 ]]; then
-                    echo "⚠️  Sehr wenig Text: $filename ($word_count Wörter) - wahrscheinlich nur Musik"
-                    echo "WENIG TEXT: $filename - $word_count Wörter, $char_count Zeichen" >> "$LOG_FILE"
-                    low_word_files+=("$filename ($word_count Wörter)")
+                    echo "⚠️  Very little text: $filename ($word_count words) - probably only music"
+                    echo "LITTLE TEXT: $filename - $word_count words, $char_count characters" >> "$LOG_FILE"
+                    low_word_files+=("$filename ($word_count words)")
                     ((low_word_count++))
                 elif [[ $word_count -lt 10 ]]; then
-                    echo "⚠️  Kurzer Text: $filename ($word_count Wörter) - möglicherweise hauptsächlich Musik"
-                    echo "KURZ: $filename - $word_count Wörter erkannt" >> "$LOG_FILE"
-                    low_word_files+=("$filename ($word_count Wörter - kurz)")
+                    echo "⚠️  Short text: $filename ($word_count words) - possibly mostly music"
+                    echo "SHORT: $filename - $word_count words detected" >> "$LOG_FILE"
+                    low_word_files+=("$filename ($word_count words - short)")
                     ((low_word_count++))
                 else
-                    echo "✅ Sprache erkannt: $filename ($word_count Wörter)"
-                    echo "ERFOLG: $filename - $word_count Wörter erkannt" >> "$LOG_FILE"
-                    good_files+=("$filename ($word_count Wörter)")
+                    echo "✅ Speech detected: $filename ($word_count words)"
+                    echo "SUCCESS: $filename - $word_count words detected" >> "$LOG_FILE"
+                    good_files+=("$filename ($word_count words)")
                     ((success_count++))
                 fi
                 
-                # Erste 100 Zeichen des Transkripts ins Log
-                echo "Inhalt (Anfang): ${content:0:100}..." >> "$LOG_FILE"
-                echo "Zeit: $start_time bis $end_time" >> "$LOG_FILE"
+                # First 100 characters of transcript to log
+                echo "Content (beginning): ${content:0:100}..." >> "$LOG_FILE"
+                echo "Time: $start_time to $end_time" >> "$LOG_FILE"
             else
-                echo "❌ Fehler: Keine Transkription erstellt für $filename"
-                echo "FEHLER: $filename - Keine Ausgabedatei erstellt" >> "$LOG_FILE"
+                echo "❌ Error: No transcription created for $filename"
+                echo "ERROR: $filename - No output file created" >> "$LOG_FILE"
                 error_files+=("$filename")
                 ((error_count++))
             fi
         else
-            echo "❌ Timeout (10 Min) oder Fehler bei $filename"
-            echo "FEHLER: $filename - Timeout oder Verarbeitungsfehler" >> "$LOG_FILE"
-            error_files+=("$filename (Timeout)")
+            if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
+                echo "❌ Timeout (${TIMEOUT_SECONDS}s) or error with $filename"
+                echo "ERROR: $filename - Timeout or processing error" >> "$LOG_FILE"
+                error_files+=("$filename (Timeout)")
+            else
+                echo "❌ Error with $filename"
+                echo "ERROR: $filename - Processing error" >> "$LOG_FILE"
+                error_files+=("$filename (Error)")
+            fi
             ((error_count++))
         fi
         
@@ -127,17 +201,17 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
     fi
 done
 
-# Erweiterte Zusammenfassung erstellen
+# Create extended summary
 cat > "$SUMMARY_FILE" << EOF
-WHISPER TRANSCRIPTION ZUSAMMENFASSUNG
-===================================
-Datum: $(date)
-Gesamte Dateien: $total_audios
-✅ Mit Sprache erkannt: $success_count
-⚠️  Wenig/kein Text: $low_word_count
-❌ Fehler: $error_count
+WHISPER TRANSCRIPTION SUMMARY
+=============================
+Date: $(date)
+Total files: $total_audios
+✅ With speech: $success_count
+⚠️  Little text: $low_word_count
+❌ Errors: $error_count
 
-DATEIEN MIT ERKANNTER SPRACHE:
+FILES WITH DETECTED SPEECH:
 EOF
 
 if [[ ${#good_files[@]} -gt 0 ]]; then
@@ -145,46 +219,46 @@ if [[ ${#good_files[@]} -gt 0 ]]; then
         echo "✅ $file" >> "$SUMMARY_FILE"
     done
 else
-    echo "- Keine" >> "$SUMMARY_FILE"
+    echo "- None" >> "$SUMMARY_FILE"
 fi
 
 echo "" >> "$SUMMARY_FILE"
-echo "DATEIEN MIT WENIG/KEINEM TEXT (wahrscheinlich nur Musik):" >> "$SUMMARY_FILE"
+echo "FILES WITH LITTLE/NO TEXT (probably only music):" >> "$SUMMARY_FILE"
 
 if [[ ${#low_word_files[@]} -gt 0 ]]; then
     for file in "${low_word_files[@]}"; do
         echo "⚠️  $file" >> "$SUMMARY_FILE"
     done
 else
-    echo "- Keine" >> "$SUMMARY_FILE"
+    echo "- None" >> "$SUMMARY_FILE"
 fi
 
 echo "" >> "$SUMMARY_FILE"
-echo "FEHLERHAFTE DATEIEN:" >> "$SUMMARY_FILE"
+echo "ERROR FILES:" >> "$SUMMARY_FILE"
 
 if [[ ${#error_files[@]} -gt 0 ]]; then
     for file in "${error_files[@]}"; do
         echo "❌ $file" >> "$SUMMARY_FILE"
     done
 else
-    echo "- Keine" >> "$SUMMARY_FILE"
+    echo "- None" >> "$SUMMARY_FILE"
 fi
 
-# Auch in die Haupt-Log schreiben
+# Also write to main log
 cat "$SUMMARY_FILE" >> "$LOG_FILE"
 
 echo ""
-echo "🎉 ALLE DATEIEN VERARBEITET!"
-echo "Transkripte gespeichert in: $OUTPUT_DIR"
-echo "📋 Detailliertes Log: $LOG_FILE"
-echo "📊 Zusammenfassung: $SUMMARY_FILE"
+echo "🎉 ALL FILES PROCESSED!"
+echo "Transcripts saved in: $OUTPUT_DIR"
+echo "📋 Detailed log: $LOG_FILE"
+echo "📊 Summary: $SUMMARY_FILE"
 echo ""
-echo "📈 FINALE STATISTIK:"
-echo "   ✅ Mit Sprache: $success_count"
-echo "   ⚠️  Wenig Text: $low_word_count" 
-echo "   ❌ Fehler: $error_count"
+echo "📈 FINAL STATISTICS:"
+echo "   ✅ With speech: $success_count"
+echo "   ⚠️  Little text: $low_word_count" 
+echo "   ❌ Errors: $error_count"
 
-# Zusammenfassung anzeigen
+# Display summary
 echo ""
-echo "📋 ERGEBNIS-ÜBERSICHT:"
+echo "📋 RESULTS OVERVIEW:"
 cat "$SUMMARY_FILE"

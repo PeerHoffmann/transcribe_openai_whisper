@@ -7,18 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-06-22
+
 ### Added
-- Initial comprehensive documentation suite
-- README.md with detailed installation and usage instructions
-- CHANGELOG.md following Keep a Changelog format
-- TODO.md with structured task management system
-- CLAUDE.md with project context and development guidelines
-- GitHub repository links to installation instructions
+- JSON configuration file (config.json) for easy settings management
+- Automatic update checking via GitHub API
+- Configurable timeout option (can be disabled for complete processing)
+- Model and language information with all 99 supported languages listed
+- Update instructions and version checking
+- Comprehensive installation guide with model download information
+- jq dependency for JSON configuration parsing
 
 ### Changed
-- Project documentation language standardized to English
-- Improved code organization and structure documentation
-- Installation instructions now include git clone as recommended method with wget as alternative
+- Script completely translated from German to English
+- Configuration moved from hardcoded variables to JSON file
+- All Whisper parameters now configurable via config.json
+- Installation instructions updated for JSON configuration
+- README restructured with configuration, updating, and model selection guides
+- Timeout system made optional and configurable
+
+### Fixed
+- Sanitized hardcoded file paths with placeholder values
+- Improved error handling for missing configuration
 
 ## [1.0.0] - 2025-06-19
 

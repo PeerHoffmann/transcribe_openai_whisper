@@ -56,6 +56,25 @@ source ~/whisper-env/bin/activate
 pip install -U openai-whisper
 ```
 
+**Important:** The first run will automatically download the selected Whisper model. Model sizes and capabilities:
+
+| Model | Size | Languages | Download Time | Use Case |
+|-------|------|-----------|---------------|----------|
+| `tiny` | ~39 MB | English only | < 1 minute | Fast processing, English only |
+| `base` | ~74 MB | English only | < 1 minute | Balanced speed/accuracy, English only |
+| `small` | ~244 MB | Multilingual (99 languages) | 2-3 minutes | Good accuracy, supports all languages |
+| `medium` | ~769 MB | Multilingual (99 languages) | 5-8 minutes | Better accuracy, supports all languages |
+| `large` | ~1550 MB | Multilingual (99 languages) | 10-15 minutes | Best accuracy, supports all languages (default) |
+
+**Supported Languages** (small, medium, large models):
+Afrikaans, Albanian, Amharic, Arabic, Armenian, Assamese, Azerbaijani, Bashkir, Basque, Belarusian, Bengali, Bosnian, Breton, Bulgarian, Burmese, Castilian, Catalan, Chinese, Croatian, Czech, Danish, Dutch, English, Estonian, Faroese, Finnish, Flemish, French, Galician, Georgian, German, Greek, Gujarati, Haitian, Haitian Creole, Hausa, Hawaiian, Hebrew, Hindi, Hungarian, Icelandic, Indonesian, Italian, Japanese, Javanese, Kannada, Kazakh, Khmer, Korean, Lao, Latin, Latvian, Lingala, Lithuanian, Luxembourgish, Macedonian, Malagasy, Malay, Malayalam, Maltese, Maori, Marathi, Mongolian, Myanmar, Nepali, Norwegian, Nynorsk, Occitan, Pashto, Persian, Polish, Portuguese, Punjabi, Romanian, Russian, Sanskrit, Serbian, Shona, Sindhi, Sinhala, Slovak, Slovenian, Somali, Spanish, Sundanese, Swahili, Swedish, Tagalog, Tajik, Tamil, Tatar, Telugu, Thai, Tibetan, Turkish, Turkmen, Ukrainian, Urdu, Uzbek, Vietnamese, Welsh, Yiddish, Yoruba
+
+Consider downloading the model before your first batch run:
+```bash
+# Test download with a small file to cache the model
+echo "This is a test" | whisper --model large --language en -
+```
+
 ### Step 4: Get the Script
 
 **Option A: Clone the Repository (Recommended)**
@@ -71,11 +90,26 @@ wget https://raw.githubusercontent.com/PeerHoffmann/transcribe_openai_whisper/ma
 chmod +x transcribe_openai_whisper.sh
 ```
 
-### Step 5: Configure Paths
-Edit the script and update these variables:
+### Step 5: Configure Settings
+Edit the `config.json` file with your settings:
+```json
+{
+  "audio_dir": "/path/to/your/audio/files",
+  "output_dir": "/path/to/your/transcripts",
+  "whisper_model": "large",
+  "brand_prompt": "Optional: brand names for better recognition",
+  "check_for_updates": true,
+  "advanced_settings": {
+    "timeout_seconds": 600,
+    "enable_timeout": true
+  }
+}
+```
+
+**Note:** The script requires `jq` for JSON parsing:
 ```bash
-AUDIO_DIR="enter_your_audio_directory_here"
-OUTPUT_DIR="enter_your_output_directory_here"
+sudo apt install jq  # Ubuntu/Debian
+brew install jq      # macOS
 ```
 
 ### Verification
@@ -87,27 +121,68 @@ whisper --help
 
 ## Configuration
 
-### Environment Setup
-The script requires configuration of the following paths:
+### JSON Configuration File
+All settings are configured in `config.json`. Key settings include:
 
-```bash
-# Audio input directory
-AUDIO_DIR="/path/to/your/audio/files"
-
-# Transcription output directory  
-OUTPUT_DIR="/path/to/your/transcripts"
-
-# Brand names for enhanced recognition (optional)
-BRAND_PROMPT="In this recording, the following brand names are mentioned: your_brand_1, your_brand_2"
+```json
+{
+  "audio_dir": "/path/to/your/audio/files",
+  "output_dir": "/path/to/your/transcripts", 
+  "whisper_model": "large",
+  "brand_prompt": "In this recording, the following brand names are mentioned: your_brand_1, your_brand_2",
+  "check_for_updates": true,
+  "advanced_settings": {
+    "no_speech_threshold": 0.6,
+    "logprob_threshold": -1.0,
+    "compression_ratio_threshold": 2.4,
+    "condition_on_previous_text": true,
+    "timeout_seconds": 600,
+    "enable_timeout": true,
+    "verbose": true
+  }
+}
 ```
 
+### Timeout Configuration
+- **enable_timeout**: `true` - Enable timeout per file, `false` - No timeout (process all files completely)
+- **timeout_seconds**: Duration in seconds when timeout is enabled (default: 600 = 10 minutes)
+
 ### Whisper Model Configuration
-The script uses the `large` model by default for best accuracy. Available models:
-- `tiny` - Fastest, least accurate
-- `base` - Balanced speed/accuracy
-- `small` - Good accuracy, moderate time
-- `medium` - Better accuracy, slower
-- `large` - Best accuracy, slowest (default)
+The script uses the `large` model by default for best accuracy. To change the model, edit the `whisper_model` setting in `config.json`:
+
+**Model Selection Guide:**
+- `tiny` - Fastest processing, English only, lowest accuracy
+- `base` - Fast processing, English only, basic accuracy  
+- `small` - Good accuracy, multilingual (99 languages), moderate speed
+- `medium` - Better accuracy, multilingual (99 languages), slower
+- `large` - Best accuracy, multilingual (99 languages), slowest (default)
+
+**Recommendation:** Use `large` for best results, `medium` for good balance of speed/accuracy, or `small` if storage/bandwidth is limited.
+
+## Updating
+
+### Automatic Update Checking
+The script automatically checks for updates when `check_for_updates` is set to `true` in `config.json`. It will display a notification if a newer version is available.
+
+### Manual Update Methods
+
+**If you cloned the repository:**
+```bash
+git pull origin master
+```
+
+**If you downloaded the script only:**
+```bash
+# Download the latest version
+wget https://raw.githubusercontent.com/PeerHoffmann/transcribe_openai_whisper/master/transcribe_openai_whisper.sh -O transcribe_openai_whisper.sh
+chmod +x transcribe_openai_whisper.sh
+```
+
+**Check current version:**
+The version is displayed in the script header and when checking for updates.
+
+**Latest releases:**
+Visit https://github.com/PeerHoffmann/transcribe_openai_whisper/releases for the latest version information.
 
 ### Advanced Parameters
 Current optimization settings:
