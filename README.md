@@ -9,8 +9,9 @@ A powerful Bash script for batch transcribing audio and video files using OpenAI
 ## Features
 
 - **Batch Processing**: Automatically processes all audio/video files in a directory
+- **Multiple Output Formats**: Generate TXT, JSON, SRT, TSV, and VTT files simultaneously
 - **Resume Functionality**: Automatically skips already processed files when rerunning
-- **Multiple Formats**: Supports M4A, MP3, WAV, MP4, AVI, MKV, MOV files
+- **Multiple Input Formats**: Supports M4A, MP3, WAV, MP4, AVI, MKV, MOV files
 - **Dual Processing Modes**: Choose between local Whisper or OpenAI API
 - **Music Optimization**: Specifically tuned for files with musical introductions
 - **Brand Recognition**: Enhanced transcription accuracy for specific brand names
@@ -100,6 +101,7 @@ Edit the `config.json` file with your settings:
   "output_dir": "/path/to/your/transcripts",
   "whisper_model": "large",
   "brand_prompt": "Optional: brand names for better recognition",
+  "output_formats": ["txt", "json", "srt", "tsv", "vtt"],
   "check_for_updates": true,
   "openai_api": {
     "enabled": false,
@@ -139,6 +141,7 @@ All settings are configured in `config.json`. Key settings include:
   "output_dir": "/path/to/your/transcripts", 
   "whisper_model": "large",
   "brand_prompt": "In this recording, the following brand names are mentioned: your_brand_1, your_brand_2",
+  "output_formats": ["txt", "json", "srt", "tsv", "vtt"],
   "check_for_updates": true,
   "advanced_settings": {
     "no_speech_threshold": 0.6,
@@ -151,6 +154,26 @@ All settings are configured in `config.json`. Key settings include:
   }
 }
 ```
+
+### Output Format Configuration
+The script can generate multiple output formats simultaneously. Configure the desired formats in `config.json`:
+
+```json
+"output_formats": ["txt", "json", "srt", "tsv", "vtt"]
+```
+
+**Available Formats:**
+- **txt** - Plain text transcription (default, most compatible)
+- **json** - Detailed JSON with timestamps and metadata  
+- **srt** - SubRip subtitle format for video players
+- **tsv** - Tab-separated values for data analysis
+- **vtt** - WebVTT format for web video captions
+
+**Format Selection Examples:**
+- All formats: `["txt", "json", "srt", "tsv", "vtt"]`
+- Subtitles only: `["srt", "vtt"]`
+- Text only: `["txt"]`
+- Data analysis: `["txt", "json", "tsv"]`
 
 ### Timeout Configuration
 - **enable_timeout**: `true` - Enable timeout per file, `false` - No timeout (process all files completely)
@@ -259,9 +282,16 @@ Current optimization settings:
 6. **Reporting**: Generates detailed logs and summary statistics
 
 ### Output Files
-- **Individual Transcripts**: `filename.txt` for each processed file
-- **Detailed Log**: `transcription_log.txt` with complete processing details
-- **Summary Report**: `transcription_summary.txt` with statistics and categorized results
+**Individual Transcripts** (generated for each audio file based on configured formats):
+- **filename.txt** - Plain text transcription
+- **filename.json** - JSON with timestamps and metadata
+- **filename.srt** - SubRip subtitle format
+- **filename.tsv** - Tab-separated values
+- **filename.vtt** - WebVTT captions
+
+**Processing Reports:**
+- **transcription_log.txt** - Complete processing details and errors
+- **transcription_summary.txt** - Statistics and categorized results
 
 ### Result Categories
 - **✅ With Speech**: Files with substantial speech content (>10 words)
@@ -271,10 +301,11 @@ Current optimization settings:
 ### Resume Functionality
 The script automatically skips files that have already been processed, making it safe to rerun:
 
-- **Smart Detection**: Checks for existing `.txt` transcript files before processing
+- **Smart Detection**: Checks for any existing transcript files (any configured format) before processing
 - **Progress Preservation**: Previously completed transcriptions are counted in statistics
 - **Safe Reruns**: Add new files to your audio directory and rerun without losing progress
 - **Status Indicators**: Shows ⏭️ for skipped files vs 🎵 for new processing
+- **Format Aware**: Skips processing if any of the requested output formats already exist
 
 **Example**: If you have 100 files and the script completes 60 before interruption, rerunning will automatically skip those 60 and continue with the remaining 40.
 

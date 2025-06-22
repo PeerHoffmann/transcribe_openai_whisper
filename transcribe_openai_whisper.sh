@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenAI Whisper Transcription Script
-# Version: 1.3.0
+# Version: 1.4.0
 # Author: Peer Hoffmann
 # Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
@@ -28,6 +28,7 @@ AUDIO_DIR=$(jq -r '.audio_dir' "$CONFIG_FILE")
 OUTPUT_DIR=$(jq -r '.output_dir' "$CONFIG_FILE")
 WHISPER_MODEL=$(jq -r '.whisper_model' "$CONFIG_FILE")
 BRAND_PROMPT=$(jq -r '.brand_prompt' "$CONFIG_FILE")
+OUTPUT_FORMATS=$(jq -r '.output_formats[]' "$CONFIG_FILE" | tr '\n' ',' | sed 's/,$//')
 CHECK_FOR_UPDATES=$(jq -r '.check_for_updates' "$CONFIG_FILE")
 
 # Load OpenAI API configuration
@@ -65,6 +66,13 @@ if [[ "$AUDIO_DIR" == "enter_your_audio_directory_here" ]] || [[ "$OUTPUT_DIR" =
     exit 1
 fi
 
+# Validate output formats
+if [[ -z "$OUTPUT_FORMATS" ]]; then
+    echo "❌ Error: No output formats specified in config.json"
+    echo "   Please add output_formats array with at least one format: txt, json, srt, tsv, vtt"
+    exit 1
+fi
+
 # Validate OpenAI API configuration if enabled
 if [[ "$OPENAI_API_ENABLED" == "true" ]]; then
     if [[ "$OPENAI_API_KEY" == "enter_your_openai_api_key_here" ]] || [[ -z "$OPENAI_API_KEY" ]]; then
@@ -97,7 +105,7 @@ check_for_updates() {
         
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
-        CURRENT_VERSION="1.3.0"
+        CURRENT_VERSION="1.4.0"
         
         if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
             echo ""
@@ -146,61 +154,78 @@ check_for_updates() {
 # === OPENAI API FUNCTIONS ===
 transcribe_with_api() {
     local audio_file="$1"
-    local output_file="$2"
+    local base_name="$2"
     
     echo "🔗 Using OpenAI API for transcription..."
     
-    # Prepare API request
-    local curl_cmd="curl -s -X POST \"$OPENAI_API_BASE_URL/audio/transcriptions\""
-    curl_cmd="$curl_cmd -H \"Authorization: Bearer $OPENAI_API_KEY\""
-    curl_cmd="$curl_cmd -H \"Content-Type: multipart/form-data\""
-    curl_cmd="$curl_cmd -F \"file=@$audio_file\""
-    curl_cmd="$curl_cmd -F \"model=$OPENAI_API_MODEL\""
-    curl_cmd="$curl_cmd -F \"response_format=text\""
+    # Convert OUTPUT_FORMATS to array
+    IFS=',' read -ra FORMATS_ARRAY <<< "$OUTPUT_FORMATS"
     
-    # Add organization if specified
-    if [[ -n "$OPENAI_API_ORG" ]] && [[ "$OPENAI_API_ORG" != "" ]]; then
-        curl_cmd="$curl_cmd -H \"OpenAI-Organization: $OPENAI_API_ORG\""
-    fi
-    
-    # Add initial prompt if specified
-    if [[ -n "$BRAND_PROMPT" ]] && [[ "$BRAND_PROMPT" != "" ]]; then
-        curl_cmd="$curl_cmd -F \"prompt=$BRAND_PROMPT\""
-    fi
-    
-    # Execute API call with timeout
-    local api_response
-    if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
-        api_response=$(timeout "$TIMEOUT_SECONDS" bash -c "$curl_cmd" 2>&1)
-        local exit_code=$?
-    else
-        api_response=$(bash -c "$curl_cmd" 2>&1)
-        local exit_code=$?
-    fi
-    
-    # Check for timeout
-    if [[ $exit_code -eq 124 ]]; then
-        echo "❌ API request timed out after ${TIMEOUT_SECONDS}s"
-        return 1
-    fi
-    
-    # Check for curl errors
-    if [[ $exit_code -ne 0 ]]; then
-        echo "❌ API request failed with exit code $exit_code"
-        echo "Response: $api_response" >> "$LOG_FILE"
-        return 1
-    fi
-    
-    # Check if response contains an error
-    if echo "$api_response" | grep -q '"error"'; then
-        echo "❌ API returned an error:"
-        echo "$api_response" | jq -r '.error.message' 2>/dev/null || echo "$api_response"
-        echo "API Error: $api_response" >> "$LOG_FILE"
-        return 1
-    fi
-    
-    # Save transcription to output file
-    echo "$api_response" > "$output_file"
+    # Process each requested format
+    for format in "${FORMATS_ARRAY[@]}"; do
+        local output_file="$OUTPUT_DIR/$base_name.$format"
+        
+        # Prepare API request
+        local curl_cmd="curl -s -X POST \"$OPENAI_API_BASE_URL/audio/transcriptions\""
+        curl_cmd="$curl_cmd -H \"Authorization: Bearer $OPENAI_API_KEY\""
+        curl_cmd="$curl_cmd -H \"Content-Type: multipart/form-data\""
+        curl_cmd="$curl_cmd -F \"file=@$audio_file\""
+        curl_cmd="$curl_cmd -F \"model=$OPENAI_API_MODEL\""
+        
+        # Set response format based on requested format
+        case "$format" in
+            "txt") curl_cmd="$curl_cmd -F \"response_format=text\"" ;;
+            "json") curl_cmd="$curl_cmd -F \"response_format=verbose_json\"" ;;
+            "srt") curl_cmd="$curl_cmd -F \"response_format=srt\"" ;;
+            "vtt") curl_cmd="$curl_cmd -F \"response_format=vtt\"" ;;
+            "tsv") curl_cmd="$curl_cmd -F \"response_format=text\"" ;; # TSV not supported by API, use text
+        esac
+        
+        # Add organization if specified
+        if [[ -n "$OPENAI_API_ORG" ]] && [[ "$OPENAI_API_ORG" != "" ]]; then
+            curl_cmd="$curl_cmd -H \"OpenAI-Organization: $OPENAI_API_ORG\""
+        fi
+        
+        # Add initial prompt if specified
+        if [[ -n "$BRAND_PROMPT" ]] && [[ "$BRAND_PROMPT" != "" ]]; then
+            curl_cmd="$curl_cmd -F \"prompt=$BRAND_PROMPT\""
+        fi
+        
+        # Execute API call with timeout
+        local api_response
+        if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
+            api_response=$(timeout "$TIMEOUT_SECONDS" bash -c "$curl_cmd" 2>&1)
+            local exit_code=$?
+        else
+            api_response=$(bash -c "$curl_cmd" 2>&1)
+            local exit_code=$?
+        fi
+        
+        # Check for timeout
+        if [[ $exit_code -eq 124 ]]; then
+            echo "❌ API request timed out after ${TIMEOUT_SECONDS}s for format $format"
+            return 1
+        fi
+        
+        # Check for curl errors
+        if [[ $exit_code -ne 0 ]]; then
+            echo "❌ API request failed with exit code $exit_code for format $format"
+            echo "Response: $api_response" >> "$LOG_FILE"
+            return 1
+        fi
+        
+        # Check if response contains an error
+        if echo "$api_response" | grep -q '"error"'; then
+            echo "❌ API returned an error for format $format:"
+            echo "$api_response" | jq -r '.error.message' 2>/dev/null || echo "$api_response"
+            echo "API Error ($format): $api_response" >> "$LOG_FILE"
+            return 1
+        fi
+        
+        # Save transcription to output file
+        echo "$api_response" > "$output_file"
+        echo "✅ Created $format file: $(basename "$output_file")"
+    done
     
     return 0
 }
@@ -220,6 +245,7 @@ echo "Audio files from: $AUDIO_DIR"
 echo "Output to: $OUTPUT_DIR"
 echo "⚙️  Optimized for videos with music intros"
 echo "🤖 Mode: $([ "$OPENAI_API_ENABLED" == "true" ] && echo "OpenAI API ($OPENAI_API_MODEL)" || echo "Local Whisper ($WHISPER_MODEL)")"
+echo "📄 Output formats: $OUTPUT_FORMATS"
 echo "⏱️  Timeout: $([ "$ENABLE_TIMEOUT" == "true" ] && echo "${TIMEOUT_SECONDS}s" || echo "disabled")"
 echo "Log file: $LOG_FILE"
 echo "=================================="
@@ -263,15 +289,36 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         current=$((current + 1))
         filename=$(basename "$audio")
         base_name=$(basename "$audio" | cut -d. -f1)
-        transcript_file="$OUTPUT_DIR/$base_name.txt"
+        # Check if any transcript already exists (resume functionality) - check for any format
+        transcript_file="$OUTPUT_DIR/$base_name.txt"  # Use txt for word counting (most reliable)
         
-        # Check if transcript already exists (resume functionality)
-        if [[ -f "$transcript_file" ]]; then
+        # Check if any of the requested formats already exist
+        skip_file=false
+        IFS=',' read -ra FORMATS_ARRAY <<< "$OUTPUT_FORMATS"
+        for format in "${FORMATS_ARRAY[@]}"; do
+            if [[ -f "$OUTPUT_DIR/$base_name.$format" ]]; then
+                skip_file=true
+                break
+            fi
+        done
+        
+        if [[ "$skip_file" == "true" ]]; then
             echo "⏭️  [$current/$total_audios] Skipping: $filename (already processed)"
             echo "[$current/$total_audios] SKIPPED: $filename - transcript already exists" >> "$LOG_FILE"
             
-            # Count existing transcript for statistics
-            existing_word_count=$(wc -w < "$transcript_file" 2>/dev/null || echo "0")
+            # Count existing transcript for statistics (use txt if available, otherwise first available format)
+            word_count_file="$transcript_file"
+            if [[ ! -f "$word_count_file" ]]; then
+                # Find first available format for word counting
+                for format in "${FORMATS_ARRAY[@]}"; do
+                    if [[ -f "$OUTPUT_DIR/$base_name.$format" ]]; then
+                        word_count_file="$OUTPUT_DIR/$base_name.$format"
+                        break
+                    fi
+                done
+            fi
+            
+            existing_word_count=$(wc -w < "$word_count_file" 2>/dev/null || echo "0")
             if [[ $existing_word_count -lt 3 ]]; then
                 low_word_files+=("$filename ($existing_word_count words - existing)")
                 ((low_word_count++))
@@ -294,7 +341,7 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         # Choose transcription method based on configuration
         if [[ "$OPENAI_API_ENABLED" == "true" ]]; then
             # Use OpenAI API for transcription
-            transcribe_with_api "$audio" "$transcript_file"
+            transcribe_with_api "$audio" "$base_name"
             transcription_exit_code=$?
         else
             # Use local Whisper with extended parameters for better music/speech separation
@@ -302,7 +349,7 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
                 timeout "$TIMEOUT_SECONDS" whisper "$audio" \
                     --model "$WHISPER_MODEL" \
                     --output_dir "$OUTPUT_DIR" \
-                    --output_format txt \
+                    --output_format "$OUTPUT_FORMATS" \
                     --initial_prompt "$BRAND_PROMPT" \
                     --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
                     --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
@@ -313,7 +360,7 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
                 whisper "$audio" \
                     --model "$WHISPER_MODEL" \
                     --output_dir "$OUTPUT_DIR" \
-                    --output_format txt \
+                    --output_format "$OUTPUT_FORMATS" \
                     --initial_prompt "$BRAND_PROMPT" \
                     --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
                     --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
@@ -326,15 +373,36 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         
         if [[ $transcription_exit_code -eq 0 ]]; then
             
-            # Check if transcript was created
-            if [[ -f "$transcript_file" ]]; then
+            # Check if any transcript was created (prefer txt for word counting)
+            word_count_file="$transcript_file"
+            if [[ ! -f "$word_count_file" ]]; then
+                # Find first available format for word counting
+                IFS=',' read -ra FORMATS_ARRAY <<< "$OUTPUT_FORMATS"
+                for format in "${FORMATS_ARRAY[@]}"; do
+                    if [[ -f "$OUTPUT_DIR/$base_name.$format" ]]; then
+                        word_count_file="$OUTPUT_DIR/$base_name.$format"
+                        break
+                    fi
+                done
+            fi
+            
+            if [[ -f "$word_count_file" ]]; then
                 # Count words and characters
-                word_count=$(wc -w < "$transcript_file" 2>/dev/null || echo "0")
-                char_count=$(wc -c < "$transcript_file" 2>/dev/null || echo "0")
+                word_count=$(wc -w < "$word_count_file" 2>/dev/null || echo "0")
+                char_count=$(wc -c < "$word_count_file" 2>/dev/null || echo "0")
                 end_time=$(date)
                 
                 # Analyze transcript content
-                content=$(cat "$transcript_file" 2>/dev/null)
+                content=$(cat "$word_count_file" 2>/dev/null)
+                
+                # Show created files
+                echo "📄 Generated formats:"
+                IFS=',' read -ra FORMATS_ARRAY <<< "$OUTPUT_FORMATS"
+                for format in "${FORMATS_ARRAY[@]}"; do
+                    if [[ -f "$OUTPUT_DIR/$base_name.$format" ]]; then
+                        echo "   ✅ $base_name.$format"
+                    fi
+                done
                 
                 # Better evaluation for music intros
                 if [[ $word_count -lt 3 ]] || [[ $char_count -lt 10 ]]; then

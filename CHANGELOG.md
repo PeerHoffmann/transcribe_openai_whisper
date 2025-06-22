@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-06-22
+
+### Added
+- **Multiple Output Formats**: Support for generating TXT, JSON, SRT, TSV, and VTT files simultaneously
+- Configurable output format selection via `output_formats` array in config.json
+- Enhanced OpenAI API support for multiple formats with proper format mapping
+- Format-specific API calls (text, verbose_json, srt, vtt) for each requested format
+- Smart resume functionality that checks for any existing format before processing
+- Format status display showing which files were successfully generated
+- Output format configuration validation with helpful error messages
+
+### Changed
+- Resume functionality now checks for any requested format instead of just TXT files
+- Word counting logic now intelligently uses available formats (prefers TXT when available)
+- Script startup display now shows selected output formats
+- Enhanced file processing to handle multiple simultaneous format generation
+- Updated documentation with comprehensive output format configuration guide
+
+### Fixed
+- Improved file checking logic to handle multiple output formats correctly
+- Enhanced error handling for missing output format configuration
+- Better fallback logic for word counting when TXT format is not available
+
 ## [1.3.0] - 2025-06-22
 
 ### Added

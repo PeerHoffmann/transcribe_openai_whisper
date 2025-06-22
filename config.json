@@ -3,6 +3,7 @@
   "output_dir": "/home/transcriptions",
   "whisper_model": "large",
   "brand_prompt": "In this recording, the following brand names are mentioned: your_brand_1, your_brand_2",
+  "output_formats": ["txt", "json", "srt", "tsv", "vtt"],
   "check_for_updates": true,
   "openai_api": {
     "enabled": false,
