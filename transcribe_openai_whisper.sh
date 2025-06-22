@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenAI Whisper Transcription Script
-# Version: 1.4.0
+# Version: 1.4.1
 # Author: Peer Hoffmann
 # Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
@@ -105,7 +105,7 @@ check_for_updates() {
         
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
-        CURRENT_VERSION="1.4.0"
+        CURRENT_VERSION="1.4.1"
         
         if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
             echo ""
@@ -161,72 +161,175 @@ transcribe_with_api() {
     # Convert OUTPUT_FORMATS to array
     IFS=',' read -ra FORMATS_ARRAY <<< "$OUTPUT_FORMATS"
     
-    # Process each requested format
-    for format in "${FORMATS_ARRAY[@]}"; do
-        local output_file="$OUTPUT_DIR/$base_name.$format"
-        
-        # Prepare API request
-        local curl_cmd="curl -s -X POST \"$OPENAI_API_BASE_URL/audio/transcriptions\""
-        curl_cmd="$curl_cmd -H \"Authorization: Bearer $OPENAI_API_KEY\""
-        curl_cmd="$curl_cmd -H \"Content-Type: multipart/form-data\""
-        curl_cmd="$curl_cmd -F \"file=@$audio_file\""
-        curl_cmd="$curl_cmd -F \"model=$OPENAI_API_MODEL\""
-        
-        # Set response format based on requested format
-        case "$format" in
-            "txt") curl_cmd="$curl_cmd -F \"response_format=text\"" ;;
-            "json") curl_cmd="$curl_cmd -F \"response_format=verbose_json\"" ;;
-            "srt") curl_cmd="$curl_cmd -F \"response_format=srt\"" ;;
-            "vtt") curl_cmd="$curl_cmd -F \"response_format=vtt\"" ;;
-            "tsv") curl_cmd="$curl_cmd -F \"response_format=text\"" ;; # TSV not supported by API, use text
-        esac
-        
-        # Add organization if specified
-        if [[ -n "$OPENAI_API_ORG" ]] && [[ "$OPENAI_API_ORG" != "" ]]; then
-            curl_cmd="$curl_cmd -H \"OpenAI-Organization: $OPENAI_API_ORG\""
-        fi
-        
-        # Add initial prompt if specified
-        if [[ -n "$BRAND_PROMPT" ]] && [[ "$BRAND_PROMPT" != "" ]]; then
-            curl_cmd="$curl_cmd -F \"prompt=$BRAND_PROMPT\""
-        fi
-        
-        # Execute API call with timeout
-        local api_response
-        if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
-            api_response=$(timeout "$TIMEOUT_SECONDS" bash -c "$curl_cmd" 2>&1)
-            local exit_code=$?
+    # Make ONE API call for the best format (prefer VTT for timestamps, fallback to verbose JSON)
+    local primary_format="vtt"
+    local api_format="vtt"
+    
+    # Check if VTT is requested, otherwise use verbose JSON as primary
+    if [[ ! " ${FORMATS_ARRAY[*]} " =~ " vtt " ]]; then
+        if [[ " ${FORMATS_ARRAY[*]} " =~ " json " ]]; then
+            primary_format="json"
+            api_format="verbose_json"
+        elif [[ " ${FORMATS_ARRAY[*]} " =~ " srt " ]]; then
+            primary_format="srt"
+            api_format="srt"
         else
-            api_response=$(bash -c "$curl_cmd" 2>&1)
-            local exit_code=$?
+            primary_format="txt"
+            api_format="text"
         fi
-        
-        # Check for timeout
-        if [[ $exit_code -eq 124 ]]; then
-            echo "❌ API request timed out after ${TIMEOUT_SECONDS}s for format $format"
-            return 1
+    fi
+    
+    echo "🔄 Making API call for $primary_format format..."
+    
+    # Prepare single API request
+    local curl_cmd="curl -s -X POST \"$OPENAI_API_BASE_URL/audio/transcriptions\""
+    curl_cmd="$curl_cmd -H \"Authorization: Bearer $OPENAI_API_KEY\""
+    curl_cmd="$curl_cmd -H \"Content-Type: multipart/form-data\""
+    curl_cmd="$curl_cmd -F \"file=@$audio_file\""
+    curl_cmd="$curl_cmd -F \"model=$OPENAI_API_MODEL\""
+    curl_cmd="$curl_cmd -F \"response_format=$api_format\""
+    
+    # Add organization if specified
+    if [[ -n "$OPENAI_API_ORG" ]] && [[ "$OPENAI_API_ORG" != "" ]]; then
+        curl_cmd="$curl_cmd -H \"OpenAI-Organization: $OPENAI_API_ORG\""
+    fi
+    
+    # Add initial prompt if specified
+    if [[ -n "$BRAND_PROMPT" ]] && [[ "$BRAND_PROMPT" != "" ]]; then
+        curl_cmd="$curl_cmd -F \"prompt=$BRAND_PROMPT\""
+    fi
+    
+    # Execute single API call with timeout
+    local api_response
+    if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
+        api_response=$(timeout "$TIMEOUT_SECONDS" bash -c "$curl_cmd" 2>&1)
+        local exit_code=$?
+    else
+        api_response=$(bash -c "$curl_cmd" 2>&1)
+        local exit_code=$?
+    fi
+    
+    # Check for timeout
+    if [[ $exit_code -eq 124 ]]; then
+        echo "❌ API request timed out after ${TIMEOUT_SECONDS}s"
+        return 1
+    fi
+    
+    # Check for curl errors
+    if [[ $exit_code -ne 0 ]]; then
+        echo "❌ API request failed with exit code $exit_code"
+        echo "Response: $api_response" >> "$LOG_FILE"
+        return 1
+    fi
+    
+    # Check if response contains an error
+    if echo "$api_response" | grep -q '"error"'; then
+        echo "❌ API returned an error:"
+        echo "$api_response" | jq -r '.error.message' 2>/dev/null || echo "$api_response"
+        echo "API Error: $api_response" >> "$LOG_FILE"
+        return 1
+    fi
+    
+    # Save primary format
+    local primary_file="$OUTPUT_DIR/$base_name.$primary_format"
+    echo "$api_response" > "$primary_file"
+    echo "✅ Created $primary_format file: $(basename "$primary_file")"
+    
+    # Convert to other requested formats
+    for format in "${FORMATS_ARRAY[@]}"; do
+        if [[ "$format" != "$primary_format" ]]; then
+            local output_file="$OUTPUT_DIR/$base_name.$format"
+            convert_format "$primary_file" "$primary_format" "$output_file" "$format"
+            if [[ $? -eq 0 ]]; then
+                echo "✅ Converted to $format: $(basename "$output_file")"
+            else
+                echo "⚠️  Could not convert to $format"
+            fi
         fi
-        
-        # Check for curl errors
-        if [[ $exit_code -ne 0 ]]; then
-            echo "❌ API request failed with exit code $exit_code for format $format"
-            echo "Response: $api_response" >> "$LOG_FILE"
-            return 1
-        fi
-        
-        # Check if response contains an error
-        if echo "$api_response" | grep -q '"error"'; then
-            echo "❌ API returned an error for format $format:"
-            echo "$api_response" | jq -r '.error.message' 2>/dev/null || echo "$api_response"
-            echo "API Error ($format): $api_response" >> "$LOG_FILE"
-            return 1
-        fi
-        
-        # Save transcription to output file
-        echo "$api_response" > "$output_file"
-        echo "✅ Created $format file: $(basename "$output_file")"
     done
     
+    return 0
+}
+
+# Function to convert between formats
+convert_format() {
+    local source_file="$1"
+    local source_format="$2"
+    local target_file="$3"
+    local target_format="$4"
+    
+    case "$source_format-$target_format" in
+        "vtt-txt")
+            # Extract text from VTT (remove timestamps and formatting)
+            grep -v "^WEBVTT" "$source_file" | grep -v "^$" | grep -v "^[0-9]" | sed 's/<[^>]*>//g' > "$target_file"
+            ;;
+        "vtt-srt")
+            # Convert VTT to SRT format
+            python3 -c "
+import re
+import sys
+
+with open('$source_file', 'r') as f:
+    content = f.read()
+
+# Remove WEBVTT header
+content = re.sub(r'^WEBVTT.*?\n\n', '', content, flags=re.DOTALL)
+
+# Convert time format and add sequence numbers
+blocks = content.strip().split('\n\n')
+srt_content = ''
+seq = 1
+
+for block in blocks:
+    if not block.strip():
+        continue
+    lines = block.strip().split('\n')
+    if len(lines) >= 2:
+        # Convert time format: 00:00:00.000 --> 00:00:00.000 to SRT format
+        time_line = lines[0].replace('.', ',')
+        text_lines = lines[1:]
+        srt_content += f'{seq}\n{time_line}\n' + '\n'.join(text_lines) + '\n\n'
+        seq += 1
+
+with open('$target_file', 'w') as f:
+    f.write(srt_content)
+" 2>/dev/null || return 1
+            ;;
+        "vtt-json"|"json-vtt"|"json-txt"|"json-srt")
+            # For now, create simple text version - could be enhanced later
+            grep -v "^WEBVTT" "$source_file" | grep -v "^$" | grep -v "^[0-9]" | sed 's/<[^>]*>//g' > "$target_file"
+            ;;
+        "vtt-tsv")
+            # Create TSV with timestamps and text
+            python3 -c "
+import re
+
+with open('$source_file', 'r') as f:
+    content = f.read()
+
+# Remove WEBVTT header
+content = re.sub(r'^WEBVTT.*?\n\n', '', content, flags=re.DOTALL)
+
+blocks = content.strip().split('\n\n')
+with open('$target_file', 'w') as f:
+    f.write('start\tend\ttext\n')
+    for block in blocks:
+        if not block.strip():
+            continue
+        lines = block.strip().split('\n')
+        if len(lines) >= 2:
+            time_parts = lines[0].split(' --> ')
+            if len(time_parts) == 2:
+                start, end = time_parts
+                text = ' '.join(lines[1:]).replace('\t', ' ')
+                f.write(f'{start}\t{end}\t{text}\n')
+" 2>/dev/null || return 1
+            ;;
+        *)
+            # Fallback: copy the file if we can't convert
+            cp "$source_file" "$target_file" 2>/dev/null || return 1
+            ;;
+    esac
     return 0
 }
 

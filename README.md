@@ -175,6 +175,8 @@ The script can generate multiple output formats simultaneously. Configure the de
 - Text only: `["txt"]`
 - Data analysis: `["txt", "json", "tsv"]`
 
+**API Efficiency Note**: When using OpenAI API mode, the script makes one optimized API call for the best available format (prioritizing VTT for timing data), then converts locally to other requested formats. This provides significant cost savings compared to multiple API calls.
+
 ### Timeout Configuration
 - **enable_timeout**: `true` - Enable timeout per file, `false` - No timeout (process all files completely)
 - **timeout_seconds**: Duration in seconds when timeout is enabled (default: 600 = 10 minutes)
@@ -215,7 +217,9 @@ For users with slower CPUs or limited local processing power, the script support
    ```
 
 ### API Pricing and Usage
-- **Pricing**: $0.006 per minute of audio processed
+- **Pricing**: $0.006 per minute of audio processed (single API call for all formats)
+- **Efficiency**: Makes one optimized API call, then converts locally to other formats
+- **Cost Savings**: Up to 80% reduction compared to multiple API calls per format
 - **Payment**: Requires OpenAI account with billing enabled
 - **Usage Tracking**: Monitor usage in your [OpenAI Dashboard](https://platform.openai.com/usage)
 - **Rate Limits**: Subject to OpenAI's API rate limits
@@ -224,12 +228,13 @@ For users with slower CPUs or limited local processing power, the script support
 
 | Feature | Local Whisper | OpenAI API |
 |---------|---------------|------------|
-| **Cost** | Free (after setup) | $0.006/minute |
+| **Cost** | Free (after setup) | $0.006/minute (single call for all formats) |
 | **Privacy** | Fully private | Audio sent to OpenAI |
 | **Speed** | Depends on hardware | Consistent, fast |
 | **Internet** | Not required | Required |
 | **Setup** | Model download required | API key only |
 | **Accuracy** | Configurable models | whisper-1 model |
+| **Format Efficiency** | Generates all formats natively | One API call + local conversion |
 
 ### Organization ID (Optional)
 The `organization` field is optional and only needed if you belong to multiple OpenAI organizations. Leave empty for personal accounts.

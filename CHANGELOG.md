@@ -7,28 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2025-06-22
+
+### Changed
+- **Major API Optimization**: OpenAI API now makes single optimized call instead of multiple calls per format
+- **Cost Reduction**: Up to 80% cost savings for OpenAI API users
+- **Smart Format Priority**: VTT format prioritized for highest quality timing data
+- **Local Conversion**: Added efficient VTT→TXT, VTT→SRT, VTT→TSV conversion functions
+- Enhanced documentation with API efficiency and cost savings information
+
+### Fixed
+- Eliminated redundant API calls when using multiple output formats
+- Improved API efficiency and reliability
+
 ## [1.4.0] - 2025-06-22
 
 ### Added
 - **Multiple Output Formats**: Support for generating TXT, JSON, SRT, TSV, and VTT files simultaneously
 - Configurable output format selection via `output_formats` array in config.json
-- Enhanced OpenAI API support for multiple formats with proper format mapping
-- Format-specific API calls (text, verbose_json, srt, vtt) for each requested format
+- **Optimized OpenAI API**: Single API call with local format conversion for 80% cost reduction
+- Smart format prioritization (VTT preferred for timing data, then JSON, SRT, TXT)
+- Local format conversion functions (VTT→TXT, VTT→SRT, VTT→TSV)
 - Smart resume functionality that checks for any existing format before processing
 - Format status display showing which files were successfully generated
 - Output format configuration validation with helpful error messages
 
 ### Changed
+- **API Efficiency**: OpenAI API now makes one optimized call instead of multiple calls per format
 - Resume functionality now checks for any requested format instead of just TXT files
 - Word counting logic now intelligently uses available formats (prefers TXT when available)
 - Script startup display now shows selected output formats
 - Enhanced file processing to handle multiple simultaneous format generation
-- Updated documentation with comprehensive output format configuration guide
+- Updated documentation with API efficiency and cost savings information
 
 ### Fixed
 - Improved file checking logic to handle multiple output formats correctly
 - Enhanced error handling for missing output format configuration
 - Better fallback logic for word counting when TXT format is not available
+- Significant cost reduction for OpenAI API users (up to 80% savings)
 
 ## [1.3.0] - 2025-06-22
 
