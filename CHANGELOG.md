@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed update checking when curl is not installed (graceful fallback with helpful message)
+- Prevent false positive update prompts when curl command fails
+
 ## [1.1.2] - 2025-06-22
 
 ### Added

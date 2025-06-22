@@ -50,11 +50,19 @@ check_for_updates() {
     if [[ "$CHECK_FOR_UPDATES" == "true" ]]; then
         echo "🔍 Checking for updates..."
         
+        # Check if curl is available
+        if ! command -v curl &> /dev/null; then
+            echo "⚠️  curl not installed - skipping update check"
+            echo "   To enable update checking: sudo apt install curl"
+            echo ""
+            return
+        fi
+        
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
         CURRENT_VERSION="1.1.2"
         
-        if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
+        if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
             echo ""
             echo "🆕 UPDATE AVAILABLE!"
             echo "   Current version: $CURRENT_VERSION"
