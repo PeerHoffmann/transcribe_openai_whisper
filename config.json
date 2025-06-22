@@ -4,6 +4,13 @@
   "whisper_model": "large",
   "brand_prompt": "In this recording, the following brand names are mentioned: your_brand_1, your_brand_2",
   "check_for_updates": true,
+  "openai_api": {
+    "enabled": false,
+    "api_key": "enter_your_openai_api_key_here",
+    "model": "whisper-1",
+    "organization": "",
+    "base_url": "https://api.openai.com/v1"
+  },
   "advanced_settings": {
     "no_speech_threshold": 0.6,
     "logprob_threshold": -1.0,

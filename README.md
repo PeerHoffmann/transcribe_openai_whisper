@@ -10,6 +10,7 @@ A powerful Bash script for batch transcribing audio and video files using OpenAI
 
 - **Batch Processing**: Automatically processes all audio/video files in a directory
 - **Multiple Formats**: Supports M4A, MP3, WAV, MP4, AVI, MKV, MOV files
+- **Dual Processing Modes**: Choose between local Whisper or OpenAI API
 - **Music Optimization**: Specifically tuned for files with musical introductions
 - **Brand Recognition**: Enhanced transcription accuracy for specific brand names
 - **Comprehensive Logging**: Detailed logs and statistics for each transcription
@@ -99,6 +100,13 @@ Edit the `config.json` file with your settings:
   "whisper_model": "large",
   "brand_prompt": "Optional: brand names for better recognition",
   "check_for_updates": true,
+  "openai_api": {
+    "enabled": false,
+    "api_key": "enter_your_openai_api_key_here",
+    "model": "whisper-1",
+    "organization": "",
+    "base_url": "https://api.openai.com/v1"
+  },
   "advanced_settings": {
     "timeout_seconds": 600,
     "enable_timeout": true
@@ -158,6 +166,49 @@ The script uses the `large` model by default for best accuracy. To change the mo
 - `large` - Best accuracy, multilingual (99 languages), slowest (default)
 
 **Recommendation:** Use `large` for best results, `medium` for good balance of speed/accuracy, or `small` if storage/bandwidth is limited.
+
+## OpenAI API Mode (Alternative to Local Processing)
+
+For users with slower CPUs or limited local processing power, the script supports using OpenAI's Whisper API instead of local processing.
+
+### When to Use OpenAI API Mode
+- **Slower CPUs**: Offload processing to OpenAI's servers
+- **Limited RAM**: Avoid loading large models locally
+- **Batch Processing**: Process multiple files without local resource constraints
+- **Consistent Performance**: Reliable processing times regardless of hardware
+
+### Setup OpenAI API
+1. **Get an API Key**: Visit [OpenAI Platform](https://platform.openai.com/api-keys) to create an API key
+2. **Configure API Settings**: Enable API mode in `config.json`:
+   ```json
+   "openai_api": {
+     "enabled": true,
+     "api_key": "sk-your-actual-api-key-here",
+     "model": "whisper-1",
+     "organization": "",
+     "base_url": "https://api.openai.com/v1"
+   }
+   ```
+
+### API Pricing and Usage
+- **Pricing**: $0.006 per minute of audio processed
+- **Payment**: Requires OpenAI account with billing enabled
+- **Usage Tracking**: Monitor usage in your [OpenAI Dashboard](https://platform.openai.com/usage)
+- **Rate Limits**: Subject to OpenAI's API rate limits
+
+### API vs Local Processing Comparison
+
+| Feature | Local Whisper | OpenAI API |
+|---------|---------------|------------|
+| **Cost** | Free (after setup) | $0.006/minute |
+| **Privacy** | Fully private | Audio sent to OpenAI |
+| **Speed** | Depends on hardware | Consistent, fast |
+| **Internet** | Not required | Required |
+| **Setup** | Model download required | API key only |
+| **Accuracy** | Configurable models | whisper-1 model |
+
+### Organization ID (Optional)
+The `organization` field is optional and only needed if you belong to multiple OpenAI organizations. Leave empty for personal accounts.
 
 ## Updating
 

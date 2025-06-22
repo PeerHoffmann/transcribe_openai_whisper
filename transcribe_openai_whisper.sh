@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenAI Whisper Transcription Script
-# Version: 1.1.3
+# Version: 1.2.0
 # Author: Peer Hoffmann
 # Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
@@ -29,6 +29,13 @@ OUTPUT_DIR=$(jq -r '.output_dir' "$CONFIG_FILE")
 WHISPER_MODEL=$(jq -r '.whisper_model' "$CONFIG_FILE")
 BRAND_PROMPT=$(jq -r '.brand_prompt' "$CONFIG_FILE")
 CHECK_FOR_UPDATES=$(jq -r '.check_for_updates' "$CONFIG_FILE")
+
+# Load OpenAI API configuration
+OPENAI_API_ENABLED=$(jq -r '.openai_api.enabled' "$CONFIG_FILE")
+OPENAI_API_KEY=$(jq -r '.openai_api.api_key' "$CONFIG_FILE")
+OPENAI_API_MODEL=$(jq -r '.openai_api.model' "$CONFIG_FILE")
+OPENAI_API_ORG=$(jq -r '.openai_api.organization' "$CONFIG_FILE")
+OPENAI_API_BASE_URL=$(jq -r '.openai_api.base_url' "$CONFIG_FILE")
 
 # Load advanced settings
 NO_SPEECH_THRESHOLD=$(jq -r '.advanced_settings.no_speech_threshold' "$CONFIG_FILE")
@@ -58,6 +65,23 @@ if [[ "$AUDIO_DIR" == "enter_your_audio_directory_here" ]] || [[ "$OUTPUT_DIR" =
     exit 1
 fi
 
+# Validate OpenAI API configuration if enabled
+if [[ "$OPENAI_API_ENABLED" == "true" ]]; then
+    if [[ "$OPENAI_API_KEY" == "enter_your_openai_api_key_here" ]] || [[ -z "$OPENAI_API_KEY" ]]; then
+        echo "❌ Error: OpenAI API is enabled but no valid API key provided in config.json"
+        echo "   Please set your API key in config.json or disable API mode"
+        echo "   Get your API key from: https://platform.openai.com/api-keys"
+        exit 1
+    fi
+    
+    # Check if curl is available for API calls
+    if ! command -v curl &> /dev/null; then
+        echo "❌ Error: curl is required for OpenAI API but not installed"
+        echo "   Please install curl: sudo apt install curl"
+        exit 1
+    fi
+fi
+
 # === UPDATE CHECKING ===
 check_for_updates() {
     if [[ "$CHECK_FOR_UPDATES" == "true" ]]; then
@@ -73,7 +97,7 @@ check_for_updates() {
         
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
-        CURRENT_VERSION="1.1.3"
+        CURRENT_VERSION="1.2.0"
         
         if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
             echo ""
@@ -119,6 +143,68 @@ check_for_updates() {
     fi
 }
 
+# === OPENAI API FUNCTIONS ===
+transcribe_with_api() {
+    local audio_file="$1"
+    local output_file="$2"
+    
+    echo "🔗 Using OpenAI API for transcription..."
+    
+    # Prepare API request
+    local curl_cmd="curl -s -X POST \"$OPENAI_API_BASE_URL/audio/transcriptions\""
+    curl_cmd="$curl_cmd -H \"Authorization: Bearer $OPENAI_API_KEY\""
+    curl_cmd="$curl_cmd -H \"Content-Type: multipart/form-data\""
+    curl_cmd="$curl_cmd -F \"file=@$audio_file\""
+    curl_cmd="$curl_cmd -F \"model=$OPENAI_API_MODEL\""
+    curl_cmd="$curl_cmd -F \"response_format=text\""
+    
+    # Add organization if specified
+    if [[ -n "$OPENAI_API_ORG" ]] && [[ "$OPENAI_API_ORG" != "" ]]; then
+        curl_cmd="$curl_cmd -H \"OpenAI-Organization: $OPENAI_API_ORG\""
+    fi
+    
+    # Add initial prompt if specified
+    if [[ -n "$BRAND_PROMPT" ]] && [[ "$BRAND_PROMPT" != "" ]]; then
+        curl_cmd="$curl_cmd -F \"prompt=$BRAND_PROMPT\""
+    fi
+    
+    # Execute API call with timeout
+    local api_response
+    if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
+        api_response=$(timeout "$TIMEOUT_SECONDS" bash -c "$curl_cmd" 2>&1)
+        local exit_code=$?
+    else
+        api_response=$(bash -c "$curl_cmd" 2>&1)
+        local exit_code=$?
+    fi
+    
+    # Check for timeout
+    if [[ $exit_code -eq 124 ]]; then
+        echo "❌ API request timed out after ${TIMEOUT_SECONDS}s"
+        return 1
+    fi
+    
+    # Check for curl errors
+    if [[ $exit_code -ne 0 ]]; then
+        echo "❌ API request failed with exit code $exit_code"
+        echo "Response: $api_response" >> "$LOG_FILE"
+        return 1
+    fi
+    
+    # Check if response contains an error
+    if echo "$api_response" | grep -q '"error"'; then
+        echo "❌ API returned an error:"
+        echo "$api_response" | jq -r '.error.message' 2>/dev/null || echo "$api_response"
+        echo "API Error: $api_response" >> "$LOG_FILE"
+        return 1
+    fi
+    
+    # Save transcription to output file
+    echo "$api_response" > "$output_file"
+    
+    return 0
+}
+
 # === DO NOT CHANGE ANYTHING BELOW THIS LINE ===
 # Timeout configuration will be handled in the whisper command directly
 
@@ -133,7 +219,7 @@ echo "🎵 Whisper Audio Transcription started"
 echo "Audio files from: $AUDIO_DIR"
 echo "Output to: $OUTPUT_DIR"
 echo "⚙️  Optimized for videos with music intros"
-echo "🤖 Model: $WHISPER_MODEL"
+echo "🤖 Mode: $([ "$OPENAI_API_ENABLED" == "true" ] && echo "OpenAI API ($OPENAI_API_MODEL)" || echo "Local Whisper ($WHISPER_MODEL)")"
 echo "⏱️  Timeout: $([ "$ENABLE_TIMEOUT" == "true" ] && echo "${TIMEOUT_SECONDS}s" || echo "disabled")"
 echo "Log file: $LOG_FILE"
 echo "=================================="
@@ -184,32 +270,41 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         start_time=$(date)
         echo "⏳ Processing running (may take time with long music intros)..."
         
-        # Whisper with extended parameters for better music/speech separation
-        if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
-            timeout "$TIMEOUT_SECONDS" whisper "$audio" \
-                --model "$WHISPER_MODEL" \
-                --output_dir "$OUTPUT_DIR" \
-                --output_format txt \
-                --initial_prompt "$BRAND_PROMPT" \
-                --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
-                --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
-                --logprob_threshold "$LOGPROB_THRESHOLD" \
-                --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
-                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1
+        # Choose transcription method based on configuration
+        if [[ "$OPENAI_API_ENABLED" == "true" ]]; then
+            # Use OpenAI API for transcription
+            transcript_file="$OUTPUT_DIR/$base_name.txt"
+            transcribe_with_api "$audio" "$transcript_file"
+            transcription_exit_code=$?
         else
-            whisper "$audio" \
-                --model "$WHISPER_MODEL" \
-                --output_dir "$OUTPUT_DIR" \
-                --output_format txt \
-                --initial_prompt "$BRAND_PROMPT" \
-                --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
-                --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
-                --logprob_threshold "$LOGPROB_THRESHOLD" \
-                --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
-                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1
+            # Use local Whisper with extended parameters for better music/speech separation
+            if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
+                timeout "$TIMEOUT_SECONDS" whisper "$audio" \
+                    --model "$WHISPER_MODEL" \
+                    --output_dir "$OUTPUT_DIR" \
+                    --output_format txt \
+                    --initial_prompt "$BRAND_PROMPT" \
+                    --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
+                    --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
+                    --logprob_threshold "$LOGPROB_THRESHOLD" \
+                    --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
+                    --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1
+            else
+                whisper "$audio" \
+                    --model "$WHISPER_MODEL" \
+                    --output_dir "$OUTPUT_DIR" \
+                    --output_format txt \
+                    --initial_prompt "$BRAND_PROMPT" \
+                    --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
+                    --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
+                    --logprob_threshold "$LOGPROB_THRESHOLD" \
+                    --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
+                    --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1
+            fi
+            transcription_exit_code=$?
         fi
         
-        if [[ $? -eq 0 ]]; then
+        if [[ $transcription_exit_code -eq 0 ]]; then
             
             # Check if transcript was created
             transcript_file="$OUTPUT_DIR/$base_name.txt"

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-06-22
+
+### Added
+- **OpenAI API Support**: Alternative processing mode using OpenAI's Whisper API for slower CPUs
+- API configuration section in config.json with key, model, organization, and base URL settings
+- Automatic API key validation and curl dependency checking when API mode is enabled
+- API vs Local processing mode display in script output
+- API transcription function with proper error handling and timeout support
+- Comprehensive OpenAI API documentation in README including pricing, setup, and comparison table
+
+### Changed
+- Enhanced script output to show processing mode (Local Whisper vs OpenAI API)
+- Updated README.md with detailed OpenAI API setup instructions and feature comparison
+- Added dual processing mode feature to main features list
+
 ## [1.1.3] - 2025-06-22
 
 ### Fixed
