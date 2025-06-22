@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenAI Whisper Transcription Script
-# Version: 1.1.0
+# Version: 1.1.1
 # Author: Peer Hoffmann
 # Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
@@ -52,7 +52,7 @@ check_for_updates() {
         
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
-        CURRENT_VERSION="1.1.0"
+        CURRENT_VERSION="1.1.1"
         
         if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
             echo "🆕 Update available: $CURRENT_VERSION → $LATEST_VERSION"
@@ -64,12 +64,7 @@ check_for_updates() {
 }
 
 # === DO NOT CHANGE ANYTHING BELOW THIS LINE ===
-# Set up timeout command based on configuration
-if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
-    TIMEOUT_CMD="timeout $TIMEOUT_SECONDS"
-else
-    TIMEOUT_CMD=""
-fi
+# Timeout configuration will be handled in the whisper command directly
 
 # Create log file
 LOG_FILE="$OUTPUT_DIR/transcription_log.txt"
@@ -134,16 +129,29 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         echo "⏳ Processing running (may take time with long music intros)..."
         
         # Whisper with extended parameters for better music/speech separation
-        if $TIMEOUT_CMD whisper "$audio" \
-            --model "$WHISPER_MODEL" \
-            --output_dir "$OUTPUT_DIR" \
-            --output_format txt \
-            --initial_prompt "$BRAND_PROMPT" \
-            --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
-            --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
-            --logprob_threshold "$LOGPROB_THRESHOLD" \
-            --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
-            --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1; then
+        if [[ "$ENABLE_TIMEOUT" == "true" ]]; then
+            if timeout "$TIMEOUT_SECONDS" whisper "$audio" \
+                --model "$WHISPER_MODEL" \
+                --output_dir "$OUTPUT_DIR" \
+                --output_format txt \
+                --initial_prompt "$BRAND_PROMPT" \
+                --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
+                --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
+                --logprob_threshold "$LOGPROB_THRESHOLD" \
+                --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
+                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1; then
+        else
+            if whisper "$audio" \
+                --model "$WHISPER_MODEL" \
+                --output_dir "$OUTPUT_DIR" \
+                --output_format txt \
+                --initial_prompt "$BRAND_PROMPT" \
+                --condition_on_previous_text "$CONDITION_ON_PREVIOUS_TEXT" \
+                --no_speech_threshold "$NO_SPEECH_THRESHOLD" \
+                --logprob_threshold "$LOGPROB_THRESHOLD" \
+                --compression_ratio_threshold "$COMPRESSION_RATIO_THRESHOLD" \
+                --verbose "$VERBOSE" >> "$LOG_FILE" 2>&1; then
+        fi
             
             # Check if transcript was created
             transcript_file="$OUTPUT_DIR/$base_name.txt"

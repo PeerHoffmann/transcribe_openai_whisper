@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-06-22
+
+### Fixed
+- Fixed timeout handling when timeout is disabled (syntax error causing all files to fail)
+- Proper conditional logic for timeout vs non-timeout whisper commands
+
 ## [1.1.0] - 2025-06-22
 
 ### Added
