@@ -1,6 +1,6 @@
 {
-  "audio_dir": "enter_your_audio_directory_here",
-  "output_dir": "enter_your_output_directory_here",
+  "audio_dir": "/home/downloads",
+  "output_dir": "/home/transcriptions",
   "whisper_model": "large",
   "brand_prompt": "In this recording, the following brand names are mentioned: your_brand_1, your_brand_2",
   "check_for_updates": true,
@@ -10,7 +10,7 @@
     "compression_ratio_threshold": 2.4,
     "condition_on_previous_text": true,
     "timeout_seconds": 600,
-    "enable_timeout": true,
+    "enable_timeout": false,
     "verbose": true
   }
 }

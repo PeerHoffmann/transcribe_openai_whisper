@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2025-06-22
+
 ### Fixed
+- **CRITICAL**: Fixed boolean parameter handling for Whisper (convert JSON true/false to True/False)
+- Fixed "invalid str2bool value: 'true'" error that prevented all files from processing
+- Updated default configuration with proper paths and settings
 - Fixed update checking when curl is not installed (graceful fallback with helpful message)
 - Prevent false positive update prompts when curl command fails
 

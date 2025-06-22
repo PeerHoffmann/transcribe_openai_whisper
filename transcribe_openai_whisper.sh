@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenAI Whisper Transcription Script
-# Version: 1.1.2
+# Version: 1.1.3
 # Author: Peer Hoffmann
 # Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
@@ -34,10 +34,23 @@ CHECK_FOR_UPDATES=$(jq -r '.check_for_updates' "$CONFIG_FILE")
 NO_SPEECH_THRESHOLD=$(jq -r '.advanced_settings.no_speech_threshold' "$CONFIG_FILE")
 LOGPROB_THRESHOLD=$(jq -r '.advanced_settings.logprob_threshold' "$CONFIG_FILE")
 COMPRESSION_RATIO_THRESHOLD=$(jq -r '.advanced_settings.compression_ratio_threshold' "$CONFIG_FILE")
-CONDITION_ON_PREVIOUS_TEXT=$(jq -r '.advanced_settings.condition_on_previous_text' "$CONFIG_FILE")
+CONDITION_ON_PREVIOUS_TEXT_RAW=$(jq -r '.advanced_settings.condition_on_previous_text' "$CONFIG_FILE")
 TIMEOUT_SECONDS=$(jq -r '.advanced_settings.timeout_seconds' "$CONFIG_FILE")
 ENABLE_TIMEOUT=$(jq -r '.advanced_settings.enable_timeout' "$CONFIG_FILE")
-VERBOSE=$(jq -r '.advanced_settings.verbose' "$CONFIG_FILE")
+VERBOSE_RAW=$(jq -r '.advanced_settings.verbose' "$CONFIG_FILE")
+
+# Convert JSON booleans to Whisper format (True/False)
+if [[ "$CONDITION_ON_PREVIOUS_TEXT_RAW" == "true" ]]; then
+    CONDITION_ON_PREVIOUS_TEXT="True"
+else
+    CONDITION_ON_PREVIOUS_TEXT="False"
+fi
+
+if [[ "$VERBOSE_RAW" == "true" ]]; then
+    VERBOSE="True"
+else
+    VERBOSE="False"
+fi
 
 # Validate required configuration
 if [[ "$AUDIO_DIR" == "enter_your_audio_directory_here" ]] || [[ "$OUTPUT_DIR" == "enter_your_output_directory_here" ]]; then
@@ -60,7 +73,7 @@ check_for_updates() {
         
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
-        CURRENT_VERSION="1.1.2"
+        CURRENT_VERSION="1.1.3"
         
         if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
             echo ""
