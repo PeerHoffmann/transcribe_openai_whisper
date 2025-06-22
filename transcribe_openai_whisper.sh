@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenAI Whisper Transcription Script
-# Version: 1.2.0
+# Version: 1.3.0
 # Author: Peer Hoffmann
 # Repository: https://github.com/PeerHoffmann/transcribe_openai_whisper
 
@@ -97,7 +97,7 @@ check_for_updates() {
         
         # Get latest release from GitHub API
         LATEST_VERSION=$(curl -s https://api.github.com/repos/PeerHoffmann/transcribe_openai_whisper/releases/latest | jq -r '.tag_name' 2>/dev/null)
-        CURRENT_VERSION="1.2.0"
+        CURRENT_VERSION="1.3.0"
         
         if [[ "$LATEST_VERSION" != "null" ]] && [[ "$LATEST_VERSION" != "" ]] && [[ "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
             echo ""
@@ -263,6 +263,27 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         current=$((current + 1))
         filename=$(basename "$audio")
         base_name=$(basename "$audio" | cut -d. -f1)
+        transcript_file="$OUTPUT_DIR/$base_name.txt"
+        
+        # Check if transcript already exists (resume functionality)
+        if [[ -f "$transcript_file" ]]; then
+            echo "⏭️  [$current/$total_audios] Skipping: $filename (already processed)"
+            echo "[$current/$total_audios] SKIPPED: $filename - transcript already exists" >> "$LOG_FILE"
+            
+            # Count existing transcript for statistics
+            existing_word_count=$(wc -w < "$transcript_file" 2>/dev/null || echo "0")
+            if [[ $existing_word_count -lt 3 ]]; then
+                low_word_files+=("$filename ($existing_word_count words - existing)")
+                ((low_word_count++))
+            elif [[ $existing_word_count -lt 10 ]]; then
+                low_word_files+=("$filename ($existing_word_count words - existing, short)")
+                ((low_word_count++))
+            else
+                good_files+=("$filename ($existing_word_count words - existing)")
+                ((success_count++))
+            fi
+            continue
+        fi
         
         echo "🎵 [$current/$total_audios] Processing: $filename"
         echo "[$current/$total_audios] START: $filename" >> "$LOG_FILE"
@@ -273,7 +294,6 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         # Choose transcription method based on configuration
         if [[ "$OPENAI_API_ENABLED" == "true" ]]; then
             # Use OpenAI API for transcription
-            transcript_file="$OUTPUT_DIR/$base_name.txt"
             transcribe_with_api "$audio" "$transcript_file"
             transcription_exit_code=$?
         else
@@ -307,7 +327,6 @@ for audio in "$AUDIO_DIR"/*.{m4a,mp3,wav,M4A,MP3,WAV,mp4,avi,mkv,mov}; do
         if [[ $transcription_exit_code -eq 0 ]]; then
             
             # Check if transcript was created
-            transcript_file="$OUTPUT_DIR/$base_name.txt"
             if [[ -f "$transcript_file" ]]; then
                 # Count words and characters
                 word_count=$(wc -w < "$transcript_file" 2>/dev/null || echo "0")

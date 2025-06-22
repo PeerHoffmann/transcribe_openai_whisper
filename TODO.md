@@ -9,21 +9,7 @@ Comprehensive task management for the OpenAI Whisper Transcription Script projec
 ## ⚡ High Priority
 *Important features and fixes (complete within weeks)*
 
-- [ ] **Translate German text to English in main script** - Convert all German comments, messages, and output to English
-  - **Status**: Not Started
-  - **Assignee**: @peerhoffmann
-  - **Estimate**: 2h
-  - **Labels**: i18n, enhancement
-  - **Created**: 2025-06-22
-  - **Notes**: All user-facing text and comments are currently in German
 
-- [ ] **Add configuration file support** - Create config.json for settings instead of hardcoded variables
-  - **Status**: Not Started
-  - **Assignee**: @peerhoffmann
-  - **Estimate**: 1d
-  - **Labels**: feature, enhancement
-  - **Created**: 2025-06-22
-  - **Notes**: Would improve usability and allow multiple configurations
 
 - [ ] **Implement CLI argument parsing** - Add command-line options for common settings
   - **Status**: Not Started
@@ -72,12 +58,6 @@ Comprehensive task management for the OpenAI Whisper Transcription Script projec
 ## 💡 Ideas
 *Brainstormed concepts for evaluation*
 
-- [ ] **Cloud processing support** - Integration with cloud-based Whisper APIs
-  - **Status**: Not Started
-  - **Assignee**: @peerhoffmann
-  - **Labels**: idea, cloud
-  - **Created**: 2025-06-22
-  - **Notes**: Could reduce local resource requirements
 
 ## Completed
 
@@ -95,8 +75,26 @@ Comprehensive task management for the OpenAI Whisper Transcription Script projec
   - **Completed**: 2025-06-22
   - **Notes**: Documents initial release (v1.0.0) from 2025-06-19
 
+- [x] **Translate German text to English in main script** - Convert all German comments, messages, and output to English
+  - **Status**: Done
+  - **Assignee**: @peerhoffmann
+  - **Completed**: 2025-06-22
+  - **Notes**: Completed in v1.1.0 - Full English translation implemented
+
+- [x] **Add configuration file support** - Create config.json for settings instead of hardcoded variables
+  - **Status**: Done
+  - **Assignee**: @peerhoffmann
+  - **Completed**: 2025-06-22
+  - **Notes**: Completed in v1.1.0 - JSON configuration system with jq parsing
+
+- [x] **OpenAI API integration** - Add cloud processing support as alternative to local Whisper
+  - **Status**: Done
+  - **Assignee**: @peerhoffmann
+  - **Completed**: 2025-06-22
+  - **Notes**: Completed in v1.2.0 - Full OpenAI API support with configuration validation
+
 ---
 
 **Last Updated**: 2025-06-22  
-**Total Tasks**: 8 (0 urgent, 3 high priority, 4 medium priority, 1 idea)  
-**Completed**: 3
+**Total Tasks**: 8 (0 urgent, 1 high priority, 4 medium priority, 0 ideas)  
+**Completed**: 6

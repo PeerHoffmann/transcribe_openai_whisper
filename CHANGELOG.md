@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-06-22
+
+### Added
+- **Resume Functionality**: Automatically skips files that already have transcript files when rerunning script
+- Smart detection of existing transcripts with word count analysis for statistics
+- Progress preservation across script interruptions and reruns
+- Status indicators showing ⏭️ for skipped files vs 🎵 for new processing
+
+### Changed
+- Enhanced step-by-step process documentation to include resume check
+- Added comprehensive resume functionality documentation in README
+
 ## [1.2.0] - 2025-06-22
 
 ### Added

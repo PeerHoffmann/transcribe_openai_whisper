@@ -9,6 +9,7 @@ A powerful Bash script for batch transcribing audio and video files using OpenAI
 ## Features
 
 - **Batch Processing**: Automatically processes all audio/video files in a directory
+- **Resume Functionality**: Automatically skips already processed files when rerunning
 - **Multiple Formats**: Supports M4A, MP3, WAV, MP4, AVI, MKV, MOV files
 - **Dual Processing Modes**: Choose between local Whisper or OpenAI API
 - **Music Optimization**: Specifically tuned for files with musical introductions
@@ -252,9 +253,10 @@ Current optimization settings:
 ### Step-by-Step Process
 1. **Activate Environment**: Script automatically activates the Whisper virtual environment
 2. **File Discovery**: Scans the audio directory for supported file formats
-3. **Processing**: Transcribes each file with progress indicators
-4. **Analysis**: Categorizes results based on speech content quality
-5. **Reporting**: Generates detailed logs and summary statistics
+3. **Resume Check**: Automatically skips files that already have transcript files
+4. **Processing**: Transcribes each new file with progress indicators
+5. **Analysis**: Categorizes results based on speech content quality
+6. **Reporting**: Generates detailed logs and summary statistics
 
 ### Output Files
 - **Individual Transcripts**: `filename.txt` for each processed file
@@ -265,6 +267,16 @@ Current optimization settings:
 - **✅ With Speech**: Files with substantial speech content (>10 words)
 - **⚠️ Limited Text**: Files with minimal speech (3-10 words, likely mostly music)
 - **❌ Errors**: Files that failed to process or generated no output
+
+### Resume Functionality
+The script automatically skips files that have already been processed, making it safe to rerun:
+
+- **Smart Detection**: Checks for existing `.txt` transcript files before processing
+- **Progress Preservation**: Previously completed transcriptions are counted in statistics
+- **Safe Reruns**: Add new files to your audio directory and rerun without losing progress
+- **Status Indicators**: Shows ⏭️ for skipped files vs 🎵 for new processing
+
+**Example**: If you have 100 files and the script completes 60 before interruption, rerunning will automatically skip those 60 and continue with the remaining 40.
 
 ### Example Output
 ```
